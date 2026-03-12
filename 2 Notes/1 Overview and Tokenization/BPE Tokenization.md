@@ -1,0 +1,1 @@
+This is a note about how BPE works, https://www.youtube.com/watch?v=HEikzVL-lZU
