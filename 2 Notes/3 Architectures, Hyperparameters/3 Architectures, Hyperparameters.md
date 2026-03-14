@@ -87,9 +87,7 @@ There were a LOT of ideas of how to positional embeddings:
 
 ![[Screenshot 2026-03-11 at 9.01.01 PM.png]]
 
-The details of Rope will be discussed in another note: https://www.youtube.com/watch?v=SMBkImDWOyQ
-
-But essentially the idea is ROPE embeddings allow relative embeddings through 'rotation'.
+The details of Rope will be discussed in another note, but essentially the idea is ROPE embeddings allow relative embeddings through 'rotation'.
 
 ![[1_3Oi7CUWqRQDysxHtYsa-Ow.gif|500]]
 
@@ -124,3 +122,4 @@ Weight decay doesn't actually seem to change train/test loss ratio, it just seem
 
 ![[Screenshot 2026-03-11 at 10.09.17 PM.png|500]]
 
+1h 4min
