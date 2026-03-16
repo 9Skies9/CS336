@@ -118,7 +118,7 @@ As we saw, memory bound sucks, we want the GPU to be on 100% throughput working 
 In practice, that means trying to move less data, reuse data as much as possible once it is on-chip, and structure computation so arithmetic work dominates memory access, and we have a few tricks to do that.
 
 
-1. don't put conditionals in the GPU computations
+## don't put conditionals in the GPU computations
 
 As we know, all threads in a warp should execute the same instruction simultaneously on different data (SIMT execution). 
 
@@ -127,7 +127,7 @@ When a conditional branch occurs at the thread level, the GPU will executes one 
 ![[Screenshot 2026-03-13 at 11.42.31 AM.png|500]]
 
 
-2. Lower precision in calculations!
+## Lower precision in calculations!
 
 We already remember seeing it in [[2 Pytorch, Resource Accounting]], if we had values in float 32, it would be 8 bytes, if it's float 16, it would be 4 bytes. 
 
@@ -140,7 +140,7 @@ However, using low precision everywhere can cause numerical instability, and tha
 ![[Screenshot 2026-03-13 at 12.01.25 PM.png|600]]
 
 
-3. Operator Fusion
+## Operator Fusion
 
 Normally, ML frameworks execute operations one at a time. For example:
 
@@ -167,7 +167,7 @@ That's basically Operator Fusion, just return the result to memory and keep all 
 ![[Screenshot 2026-03-13 at 12.15.55 PM.png|400]]
 
 
-3. Re-computation
+## 3. Re-computation ^1e02f6
 
 Originally we back propagation, we compute and store values during the forward pass, then compute gradients with respect to the loss from the output back to the inputs during the backward pass.
 
@@ -217,8 +217,7 @@ x → a
   
 The same parts of the forward graph may be recomputed multiple times, you could say, 'wow, this is so wasteful of computation!' I can't disagree, but memory is scarce while compute is relatively more available (remember the chart above).
 
-
----
+## Wait
 
 2 techniques which I have 0 clue about, memory coalescing and tiling.
 
