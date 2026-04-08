@@ -117,15 +117,13 @@ As we saw, memory bound sucks, we want the GPU to be on 100% throughput working 
 
 In practice, that means trying to move less data, reuse data as much as possible once it is on-chip, and structure computation so arithmetic work dominates memory access, and we have a few tricks to do that.
 
-
-## don't put conditionals in the GPU computations
+## 1 Don't put conditionals in the GPU computations
 
 As we know, all threads in a warp should execute the same instruction simultaneously on different data (SIMT execution). 
 
 When a conditional branch occurs at the thread level, the GPU will executes one branch while masking off the other threads that should not participate, essentially setting those threads to idle.
 
 ![[Screenshot 2026-03-13 at 11.42.31 AM.png|500]]
-
 
 ## Lower precision in calculations!
 

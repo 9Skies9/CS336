@@ -101,10 +101,7 @@ We don't need to copy everything to every machine, and we could shard the optimi
 - $\Psi$ : the total number of model parameters.
 - $N_d$​: the number of data-parallel devices,  the number of GPUs. 
 
-
-
-
-
+---
 #### ZeRO 1
 
 Starting from ZeRO 1, the idea is that each GPU holds the model + gradient, and each GPU is responsible for updating only a subset (a shard) of parameters with the optimizer.
@@ -120,5 +117,95 @@ In principle, the idea is:
 - every GPU updates a shard of the total params using shard of gradient + shard of optimizer state
 - all gather parameters
 
-This 
+Compared to normal naive DDP, ZeRO 1 adds just 1 more all gather, but reduces the memory by `Optimizer States / Number of GPU` parameters.
 
+![[Screenshot 2026-04-07 at 10.21.18 PM.png|500]]
+
+
+## Quick Run of ZeRO 2, 3
+
+Since we already discussed most of parallelism in huggingface's GPU playbook, this will just be a quick run down.
+
+Zero 2 shards gradients as well, but since we now can't store a full gradient vector in memory of a GPU (since sharding), we have to perform a reduce per layer's back propagation to send it to he respective GPU.
+- This reduce makes overhead increase compared to ZeRO 1
+
+Then the rest is similar as Zero 1, update separately on each machine, then an all gather.
+
+![[Screenshot 2026-04-07 at 10.24.13 PM.png|500]]
+
+Then we can go further to shard parameters as well, but this makes communication a lot more annoying:
+
+- load shards
+- all gather layer 0
+- all GPUs run forward
+- free parameters
+- all gather layer 1
+- all GPUs run forward
+- and on...
+
+While it seems that communication has drastically increased since we are basically calling an all gather at every operation, these communications could be overlapped with computation, and therefore the overhead isn't that much.
+
+![[Screenshot 2026-04-07 at 10.28.48 PM.png|500]]
+
+Now using ZeRO techniques, we are able to store model sizes from 6B to 53B for a A100 cluster (8 GPUs).
+
+![[Screenshot 2026-04-07 at 10.30.18 PM.png|500]]
+
+But here's the problem, while it's nice to have Zero 1 & 2 reduce gradient & optimizer states memory, Zero 3 is what really matters for storing larger model sizes, but it's not a very good method due to the communication overhead (yes it's still slow), and it doesn't solve the problem of storing activations.
+
+## Model Parallelism
+
+To split up the model in memory, we can use pipeline parallel and tensor parallel.
+
+The idea of pipeline parallel is simple, if a model can't fit on 1 GPU, divide it's layers onto multiple GPUs.
+
+![[Screenshot 2026-04-07 at 10.37.14 PM.png|500]]
+
+But this sucks! When GPU 0 computes layer 0, GPU 1, 2, 3 are all waiting around for data to come around, same thing happens during backward pass.
+
+![[Screenshot 2026-04-07 at 10.38.09 PM.png|500]]
+
+There are some solutions like micro-batches, which frankly looks like process parallelism in a CPU at a naive level.
+
+![[Screenshot 2026-04-07 at 10.42.26 PM.png|500]]
+
+There are more crazy engineering solutions to pipeline parallelism (which, frankly I didn't even look at myself), the big problem is the utilization vs. communication overhead, which requires more bandwidth.
+
+![[Screenshot 2026-04-07 at 11.00.26 PM.png|500]]
+
+Like what is going on here...
+
+Deepseek created a pipeline parallel to have 'Zero bubble' pipelining, where the big idea is that certain parameters' gradients in back propagation could be computed whenever, while others must be computed in sequence.
+
+Like take this example:
+
+|**Task**|**Component**|**Destination**|**Priority**|
+|---|---|---|---|
+|**Forward (F)**|$y = xW$|Next Device|**High** (Required for next F)|
+|**Backward (B)**|$\nabla_x L$|Previous Device|**High** (Required for next B)|
+|**Weight (W)**|$\nabla_W L$|Local Memory|**Low** (Only needed for Optimizer)|
+
+The parameters which can have their gradients computed whenever without harming the computation graph therefore could be slotted in whenever there's space for compute in the GPUs.
+
+Like the backward gradient for activations x will be used for the loss gradient calculation in previous layers due to the chain rule, but the weights gradients aren't used anymore in the previous layer's loss gradient calculation.
+
+![[Screenshot 2026-04-07 at 11.21.03 PM.png|500]]
+
+---
+## Tensor Parallel
+
+As most operations in LLMs is just matrix multiplication, this process can be divided down into sub-matrices + concats/sums. Fundamentally, we've already discussed them in the huggingface book, again, but as a quick recap:
+
+- Column Parallel
+
+![[Pasted image 20260407234635.png|500]]
+
+- Row Parallel
+
+![[Pasted image 20260407234651.png|500]]
+
+However, you don't want to perform tensor parallel between too many GPUs, again, we get to the problem of too much overhead in communication.
+
+![[Screenshot 2026-04-08 at 12.08.21 AM.png|500]]
+
+- 8 GPUs seem to be the sweet spot for tensor parallel
