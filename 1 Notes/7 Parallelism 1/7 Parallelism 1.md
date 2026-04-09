@@ -15,7 +15,6 @@ Let's look at this diagram of parallelism.
 | **HDR InfiniBand** | 200 Gb/s (25 GB/s) per port             |
 | **PCIe 4.0**       | 32 GB/s (x16)                           |
 |                    |                                         |
-
 - NVLink – GPU ↔ GPU, intra‑node, ultra‑fast (up to 400 GT/s per lane). Bypasses CPU/PCIe.
 - xGMI – CPU ↔ CPU, AMD’s high‑speed coherent interconnect.
 - HDR InfiniBand – Node ↔ node, inter‑node, uses RDMA for direct GPU‑to‑GPU communication across machines.
@@ -24,7 +23,15 @@ Let's look at this diagram of parallelism.
 So communications between GPUs are the quickest, GPUs and CPUs are slower, nodes and nodes (a node is considered that entire setup there) are more slower, and so on.
 
 ---
+## Memory of a LLM training
 
+As LLMs train, the memory on GPUs change over time, starting from the first pass, we can see activation memory adding up as we perform the forward pass, then they slowly get released in the backward pass.
+
+Gradient values start to accumulate in the backward pass, and slowly get released as the optimizer states are being applied layer by layer
+
+![[Screenshot 2026-04-08 at 11.53.36 AM.png]]
+
+---
 ## Quick Recall of Parallelism Operations
 
 For the communications between parallel systems, these are some of the common collective communication operations:
@@ -208,4 +215,46 @@ However, you don't want to perform tensor parallel between too many GPUs, again,
 
 ![[Screenshot 2026-04-08 at 12.08.21 AM.png|500]]
 
-- 8 GPUs seem to be the sweet spot for tensor parallel
+- 8 GPUs seem to be the sweet spot for tensor parallel (this is from the huggingface book!)
+
+
+## Sequence Parallel
+
+Tensor parallelism shards tensors across the **hidden dimension**, which breaks operations that require access to the _full hidden state per token_. Examples include Layer Normalization and dropout.
+
+To address this, sequence parallelism redistributes work across the **sequence dimension** instead. Since operations like LayerNorm and dropout are **token-wise** (they operate independently on each token’s full hidden vector), we can safely shard the sequence across GPUs. Each GPU holds:
+- the **full hidden dimension** (needed for correctness), and
+- only a **subset of tokens** (`sequence_length / num_GPUs`)
+
+In practice, both are combined together:
+- compute-heavy ops (e.g. matmuls) benefit from tensor parallelism
+- elementwise / token-wise ops (e.g. LayerNorm, dropout) avoid expensive communication
+
+---
+## Activation Memory
+
+With all the conclusion of the above description methods of parallelism, we can see how much of an impact it makes on memory of activations.
+
+This is the formula (roughly) for the naive, no parallelism memory per transformer layer.
+
+![[Screenshot 2026-04-08 at 11.46.47 AM.png|500]]
+
+And we can stack tensor + sequence + activation re-computation to get linear scaling for memory. 
+
+![[Screenshot 2026-04-08 at 11.47.48 AM.png|500]]
+
+---
+## Putting it Together
+
+In 2021, Nvidia researchers tried to see which combinations of parallelism is best for different model sizes, and in practice:
+
+![[Screenshot 2026-04-08 at 12.02.56 PM.png|500]]
+
+We have a few takeaways:
+- tensor parallel caps at 8
+- pipeline parallel can scale indefinitely
+- data parallel dece
+
+In real LLMs:
+- Deepseek V3 used ZeRO 1 + Tensor + Sequence + Pipeline parallel.
+- Llama 3 405B used Tensor + Context (doesn't matter a lot for now) + Pipeline + Data parallel
