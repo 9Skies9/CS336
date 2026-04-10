@@ -50,3 +50,11 @@ There's a lot of these down the road and I don't think i want to name all of the
 There was 1 notable one which I liked, hugging face's FineWeb, again I'm not going to go into the details of how they've done it, here's just an image for a slap.
 
 ![[Pasted image 20260408202218.png|500]]
+
+This filtered about 90% of the tokens of common crawl, nemotron (from nvidia) thought that's removing too much tokens and tried to increase it a bit.
+
+---
+## Post Training
+
+Apparently not as much... it's hard to get a LOT of data for supervised fine tuning as they have to follow the LLM chatting style interface, and data on a grand scale was difficult to get.
+

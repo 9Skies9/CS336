@@ -1,0 +1,3 @@
+As I have very little compute resources + I don't know parallel computing & CUDA I will have to skip out on Lab 2,3 for now. I'm not interested in Lab 4's content and also won't be doing it.
+
+There's nothing yet for Lab 1 and Lab 5...
